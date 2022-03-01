@@ -21,7 +21,7 @@ model:
 
 train:
   batch_size: 32
-  epochs: 1
+  epochs: 10
   learning_rate: 0.0002
   loss: categorical_crossentropy
   support_quick_scoring: true
