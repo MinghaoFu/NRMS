@@ -25,24 +25,19 @@ seed = 42
 
 # Options: demo, small, large
 MIND_type = 'large'
-data_path = os.path.join('..', 'data', 'data/data_large')
+data_path = os.path.join('data', 'data_large')
 
 train_news_file = os.path.join(data_path, 'train', r'news.tsv')
 train_behaviors_file = os.path.join(data_path, 'train', r'behaviors.tsv')
 valid_news_file = os.path.join(data_path, 'valid', r'news.tsv')
 valid_behaviors_file = os.path.join(data_path, 'valid', r'behaviors.tsv')
+test_news_file = os.path.join(data_path, 'test', r'news.tsv')
+test_behaviors_file = os.path.join(data_path, 'test', r'behaviors.tsv')
 wordEmb_file = os.path.join(data_path, "utils", "embedding.npy")
 userDict_file = os.path.join(data_path, "utils", "uid2index.pkl")
 wordDict_file = os.path.join(data_path, "utils", "word_dict.pkl")
-yaml_file = os.path.join(data_path, "utils", r'nrms.yaml')
 
 mind_url, mind_train_dataset, mind_dev_dataset, mind_utils = get_mind_data_set(MIND_type)
-
-if not os.path.exists(os.path.join(data_path, 'train')):
-    download_deeprec_resources(mind_url, os.path.join(data_path, 'train'), mind_train_dataset)
-
-if not os.path.exists(os.path.join(data_path, 'valid')):
-    download_deeprec_resources(mind_url, os.path.join(data_path, 'valid'), mind_dev_dataset)
 
 if not os.path.exists(os.path.join(data_path, 'utils')):
     download_deeprec_resources(r'https://recodatasets.z20.web.core.windows.net/newsrec/',
@@ -56,19 +51,10 @@ hparams = prepare_hparams(yaml_file,
                           userDict_file=userDict_file)
 
 model = model(hparams, MINDIterator, MINDTestIterator, seed)
-model.fit(train_news_file, train_behaviors_file, valid_news_file, valid_behaviors_file)
+model_path = os.path.join("model")
+model.model.load_weights(os.path.join(model_path, "nrms_model_weight"))
 
-imp_indices, labels, predictions = model.evaluate(valid_news_file, valid_behaviors_file)
-eval_info = cal_metric(labels, predictions, hparams.metrics)
-print(eval_info)
-
-model_path = os.path.join(data_path, "model")
-os.makedirs(model_path, exist_ok=True)
-
-model.model.save_weights(os.path.join(model_path, "nrms_model_weight"))
-
-imp_indices, labels, predictions = model.evaluate(valid_news_file, valid_behaviors_file)
-
+imp_indices, predictions = model.predict(test_news_file, test_behaviors_file)
 with open(os.path.join(data_path, 'prediction.txt'), 'w') as f:
     for imp_index, prediction in tqdm(zip(imp_indices, predictions)):
         imp_index += 1

@@ -9,6 +9,7 @@ from recommenders.models.deeprec.deeprec_utils import cal_metric
 
 from attention import multiHeadSelfAttention, additiveAttention
 
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 
@@ -17,6 +18,7 @@ class model:
         self,
         hparams,
         data_loader,
+        test_data_loader,
         seed
     ):
         self.seed = seed
@@ -38,10 +40,10 @@ class model:
         
         # MINDiterator
         self.train_data_loader = data_loader(hparams,hparams.npratio,col_spliter='\t')
-        self.test_data_loader = data_loader(hparams,col_spliter='\t')
+        self.test_data_loader = test_data_loader(hparams,col_spliter='\t')
 
-        #self.model, self.scorer = self.nrms_graph(self.nrms_core)
-        self.model, self.scorer = self.nrms_core()
+        self.model, self.scorer = self.nrms_graph(self.nrms_core)
+        #self.model, self.scorer = self.nrms_core()
         # categorical cross entropy, adam optimizer
         adam_optimizer = keras.optimizers.Adam(learning_rate=self.hparams.learning_rate)
         self.model.compile(loss=self.hparams.loss, optimizer=adam_optimizer)
@@ -128,8 +130,7 @@ class model:
                 total_loss += batch_loss
                 steps += 1
                 if steps % self.hparams.show_step == 0:
-                    progress_bar.set_description('epoch {3:d}, step {0:d}, average loss: {1:.6f}, step loss: {2:.6f}'
-                                                 .format(steps, total_loss / steps, batch_loss, epoch + 1))
+                    progress_bar.set_description('epoch {3:d}, step {0:d}, average loss: {1:.6f}, step loss: {2:.6f}, total iteration: {4:d}'.format(steps, total_loss / steps, batch_loss, epoch + 1, len(progress_bar)))
 
             train_end = time.time()
 
@@ -167,7 +168,8 @@ class model:
         imp_indices = []
         user_reps = []
 
-        for batch_data in tqdm(self.test_data_loader.load_user_from_file(news_file, behaviors_file)):
+        for batch_data in tqdm(self.test_data_loader.load_test_user_from_file(news_file, behaviors_file)):
+
             user_history_batch = batch_data['clicked_title_batch']
             user_reps_batch = self.user_encoder.predict_on_batch(user_history_batch)
             imp_indices_batch = batch_data['impr_index_batch']
@@ -177,8 +179,8 @@ class model:
 
         return dict(zip(imp_indices, user_reps))
 
+
     def evaluate(self, news_file, behaviors_file):
-        # get labels and pridictions to call metrics
         news_rep_dict = self.build_news_rep_dict(news_file)
         imp_urep_dict = self.build_imp_urep_dict(news_file, behaviors_file)
 
@@ -187,10 +189,10 @@ class model:
         predictions = []
 
         for (
-            imp_index,
-            news_index,
-            user_index,
-            label,
+                imp_index,
+                news_index,
+                user_index,
+                label,
         ) in tqdm(self.test_data_loader.load_impression_from_file(behaviors_file)):
             imp_predictions = np.dot([news_rep_dict[i] for i in news_index], imp_urep_dict[imp_index])
             imp_indices.append(imp_index)
@@ -198,6 +200,29 @@ class model:
             predictions.append(imp_predictions)
 
         return imp_indices, labels, predictions
+
+
+    def predict(self, news_file, behaviors_file):
+        # get labels and pridictions to call metrics
+        news_rep_dict = self.build_news_rep_dict(news_file)
+        imp_urep_dict = self.build_imp_urep_dict(news_file, behaviors_file)
+
+        imp_indices = []
+        predictions = []
+
+        for (
+            imp_index,
+            news_index,
+            user_index,
+        ) in tqdm(self.test_data_loader.load_test_impression_from_file(behaviors_file)):
+            imp_predictions = np.dot([news_rep_dict[i] for i in news_index], imp_urep_dict[imp_index])
+            imp_indices.append(imp_index)
+            predictions.append(imp_predictions)
+
+        return imp_indices, predictions
+
+
+
     
 
 
